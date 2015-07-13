@@ -2,6 +2,8 @@ SCRIPT=`readlink -f $BASH_SOURCE`
 SCRIPTDIR=`dirname $SCRIPT`
 source $SCRIPTDIR/qsub_utils.sh
 
+read_stats_bin="${SCRIPTDIR}/read_stats.py"
+
 # Note - need to be a bit careful about paired-end reads
 # See 'Trimming paired-end reads' section of docs: https://cutadapt.readthedocs.org/en/latest/guide.html#basic-usage
 # Forward and reverse adapter strings should be different.
@@ -73,6 +75,59 @@ run_read_subsample()
     echo $jobid
 }
 
+# Function to set the adapter path to use, or get a list
+# of those installed on the system.
+# For our MiSeq, best to use TruSeq3-PE-2.fa for PE, NexteraPE-PE.fa for MP.
+trimmomatic_adapters() {
+    adapters_filename=$1
+    adapters_dir=/opt/bio/trinity2/trinity-plugins/Trimmomatic/adapters/
+    adapters_path=${adapters_dir}/${adapters_filename}
+    # Adapters filename should be one of:
+    # NexteraPE-PE.fa  TruSeq2-PE.fa  TruSeq2-SE.fa  
+    # TruSeq3-PE-2.fa  TruSeq3-PE.fa  TruSeq3-SE.fa
+    if [ -f ${adapters_path} ]; then
+        echo ${adapters_path}
+    else
+        echo "Unspecified or invalid adapters path." 1>&2
+        echo "Enter one of the filenames in adapters directory" 1>&2
+        echo "${adapters_dir}:" 1>&2
+        for f in ${adapters_dir}/*; do
+            echo $f 1>&2
+        done
+    fi
+}
+
+run_trimmomatic() {
+    reads_R1_in=$1
+    reads_R2_in=$2
+    adapters_filename=$3
+    qsub_holdid=1
+    [ ! -z $4 ] && qsub_holdid=$4
+    jobname=trimmomatic
+    trimmomatic_jar=/opt/bio/trinity2/trinity-plugins/Trimmomatic/trimmomatic.jar
+    leading_qual=20
+    trailing_qual=20
+    sliding_qual=20
+    min_len=40
+    reads_R1_pair_out=${reads_R1_in%.*}_tmm_pair.fq.gz
+    reads_R2_pair_out=${reads_R2_in%.*}_tmm_pair.fq.gz
+    reads_R1_unpair_out=${reads_R1_in%.*}_tmm_unpair.fq.gz
+    reads_R2_unpair_out=${reads_R2_in%.*}_tmm_unpair.fq.gz
+    adapters_path=`trimmomatic_adapters ${adapters_filename}`
+    adapters_cmd=
+    if [ ! -z ${adapters_path} ]; then
+        adapters_cmd="ILLUMINACLIP:${adapters_path}:2:30:10"
+    fi
+    trimmomatic_cmd="java -jar ${trimmomatic_jar} PE -phred33 ${reads_R1_in} ${reads_R2_in} \
+        ${reads_R1_pair_out} ${reads_R1_unpair_out} ${reads_R2_pair_out} ${reads_R2_unpair_out} \
+        ${adapters_cmd} LEADING:${leading_qual} TRAILING:${trailing_qual} SLIDINGWINDOW:4:${sliding_qual} \
+        MINLEN:${min_len}"
+    echo ${trimmomatic_cmd}
+    # jobid=`run_qsub 1 ${qsub_holdid} "${trimmomatic_cmd}" $jobname`
+    # echo $jobid
+}
+
+
 # This function runs only one reads file, although an arbitrary list of reads
 # files could be provided, possibly as a file listing instead so the number of args
 # is always known.
@@ -81,7 +136,7 @@ run_read_stats() {
     stats_file=$2
     qsub_holdid=1
     [ ! -z $3 ] && qsub_holdid=$3
-    stats_cmd="read_stats.py --reads $reads --stats_file $stats_file --stats_header"
+    stats_cmd="${read_stats_bin} --reads $reads --stats_file $stats_file --stats_header"
     jobname="read_stats"
     jobid=`run_qsub 1 $qsub_holdid "$stats_cmd" $jobname`
     echo $jobid
