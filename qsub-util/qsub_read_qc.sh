@@ -85,24 +85,24 @@ trimmomatic_adapters() {
     # Adapters filename should be one of:
     # NexteraPE-PE.fa  TruSeq2-PE.fa  TruSeq2-SE.fa  
     # TruSeq3-PE-2.fa  TruSeq3-PE.fa  TruSeq3-SE.fa
-    if [ -f ${adapters_path} ]; then
-        echo ${adapters_path}
-    else
-        echo "Unspecified or invalid adapters path." 1>&2
-        echo "Enter one of the filenames in adapters directory" 1>&2
+    if [ -z ${adapters_filename} ]; then
+        echo "Enter one of the filenames in adapters directory (qlogin to view)" 1>&2
         echo "${adapters_dir}:" 1>&2
-        for f in ${adapters_dir}/*; do
-            echo $f 1>&2
-        done
+        echo "NexteraPE-PE.fa  TruSeq2-PE.fa  TruSeq2-SE.fa" 1>&2
+        echo "TruSeq3-PE-2.fa  TruSeq3-PE.fa  TruSeq3-SE.fa" 1>&2
+    else
+        echo ${adapters_path}
     fi
 }
 
 run_trimmomatic() {
     reads_R1_in=$1
     reads_R2_in=$2
-    adapters_filename=$3
+    crop_first=$3
+    crop_last=$4
+    adapters_filename=$5
     qsub_holdid=1
-    [ ! -z $4 ] && qsub_holdid=$4
+    [ ! -z $6 ] && qsub_holdid=$6
     jobname=trimmomatic
     trimmomatic_jar=/opt/bio/trinity2/trinity-plugins/Trimmomatic/trimmomatic.jar
     leading_qual=20
@@ -115,16 +115,27 @@ run_trimmomatic() {
     reads_R2_unpair_out=${reads_R2_in%.*}_tmm_unpair.fq.gz
     adapters_path=`trimmomatic_adapters ${adapters_filename}`
     adapters_cmd=
-    if [ ! -z ${adapters_path} ]; then
+    if [ -z ${adapters_path} ]; then
+        echo "Missing adapter file. No adapter removal will be performed" 1>&2
+    else
         adapters_cmd="ILLUMINACLIP:${adapters_path}:2:30:10"
+    fi
+    crop_first_cmd=
+    if [ ${crop_first} != "0" ]; then
+        crop_first_cmd="HEADCROP:${crop_first}"
+    fi
+    crop_last_cmd=
+    if [ ${crop_last} != "0" ]; then
+        crop_last_cmd="CROP:${crop_last}"
     fi
     trimmomatic_cmd="java -jar ${trimmomatic_jar} PE -phred33 ${reads_R1_in} ${reads_R2_in} \
         ${reads_R1_pair_out} ${reads_R1_unpair_out} ${reads_R2_pair_out} ${reads_R2_unpair_out} \
-        ${adapters_cmd} LEADING:${leading_qual} TRAILING:${trailing_qual} SLIDINGWINDOW:4:${sliding_qual} \
-        MINLEN:${min_len}"
+        ${adapters_cmd} ${crop_last_cmd} ${crop_first_cmd} LEADING:${leading_qual} \
+        TRAILING:${trailing_qual} SLIDINGWINDOW:4:${sliding_qual} MINLEN:${min_len}"
     echo ${trimmomatic_cmd}
-    # jobid=`run_qsub 1 ${qsub_holdid} "${trimmomatic_cmd}" $jobname`
-    # echo $jobid
+    # Trimmomatic uses 16 threads by default (unsure how to change the default).
+    jobid=`run_qsub 16 ${qsub_holdid} "${trimmomatic_cmd}" $jobname`
+    echo $jobid
 }
 
 

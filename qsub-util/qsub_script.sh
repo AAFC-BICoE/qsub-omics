@@ -4,8 +4,9 @@
 # #$ -N qsub_script
 #$ -V
 #$ -M $EMAIL
-#$ -pe orte 1
+# #$ -pe orte 1
 #$ -cwd
+#$ -q all.q
 export PATH=/usr/java/latest/bin/:$PATH
 CMD=$1
 
