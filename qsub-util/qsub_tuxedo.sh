@@ -172,6 +172,39 @@ run_mpileup() {
     echo ${qsub_mpileup_jobid}
 }
 
+# Run bowtie2 given insert size, std. dev, and orientation.
+run_bowtie2_ins() {
+    reads_R1=$1
+    reads_R2=$2
+    ins_size=$3
+    ins_stdev=$4
+    orientation=$5
+    genome=$6
+    samfile=$7
+    qsub_holdid=1
+    [ ! -z $6 ] && qsub_holdid=$6
+    nprocs=6
+    get_qsub_script
+    stdev_int=`echo "(${ins_size}*${ins_stdev})/1" | bc`
+    min_ins=`echo "${ins_size}-${stdev_int}" | bc`
+    max_ins=`echo "${ins_size}+${stdev_int}" | bc`
+    orientation_flag=
+    [ ! -z `echo $orientation | grep rf` ] && orientation_flag=" --rf "
+    [ ! -z `echo $orientation | grep fr` ] && orientation_flag=" --fr "
+    [ ! -z `echo $orientation | grep ff` ] && orientation_flag=" --ff "
+    [ ! -z `echo $orientation | grep rr` ] && orientation_flag=" --rr "
+    lib_args="${orientation_flag} --minins ${min_ins} --maxins ${max_ins} "
+    bowtie2_cmd="bowtie2 -x $genome -q -1 $reads_R1 -2 $reads_R2 ${lib_args} -S $samfile --threads $nprocs"
+    qsub_bowtie2_cmd="qsub -N bowtie2_${orientation} -pe smp $nprocs -hold_jid ${qsub_holdid} qsub_script.sh \"${bowtie2_cmd}\""
+    >&2 echo ${qsub_bowtie2_cmd}
+    qsub_bowtie2_out=`eval ${qsub_bowtie2_cmd}`
+    >&2 echo ${qsub_bowtie2_out}
+    qsub_bowtie2_jobid=`echo $qsub_bowtie2_out | perl -ne 'if (/Your job ([0-9]+)/) { print $1 }'`
+    echo ${qsub_bowtie2_jobid}
+}
+    
+
+
 # Additional bowtie-alignment funcs added in context of bug 4260
 run_bowtie2_lib() {
     reads_R1=$1
