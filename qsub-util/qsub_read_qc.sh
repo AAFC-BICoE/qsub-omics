@@ -45,6 +45,18 @@ run_fastx_trimmer()
     echo $jobid
 }
 
+run_fastq_to_fasta()
+{
+    fq_in=$1
+    fa_out=$2
+    qsub_holdid=1
+    [ ! -z $3 ] && qsub_holdid=$3
+    fastq_to_fasta_cmd="/opt/bio/fastx/bin/fastq_to_fasta -Q 33 -i $fq_in -o $fa_out"
+    jobname="fastq_to_fasta"
+    jobid=`run_qsub 1 $qsub_holdid "$fastq_to_fasta_cmd" $jobname`
+    echo $jobid
+}
+
 # Note - reads must be gunzipped before running potrim.
 run_potrim() 
 {

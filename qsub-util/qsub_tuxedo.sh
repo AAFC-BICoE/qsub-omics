@@ -180,21 +180,26 @@ run_bowtie2_ins() {
     ins_stdev=$4
     orientation=$5
     genome=$6
-    samfile=$7
+    prefix=$7
     qsub_holdid=1
     [ ! -z $6 ] && qsub_holdid=$6
     nprocs=6
+    extra_flags=" --un-conc ${prefix}_un-conc.fq --al-conc ${prefix}_al-conc.fq "
     get_qsub_script
+    if [ ! -e $genome.1.bt2 ]; then
+	jid=`run_bowtie2_build $genome $qsub_holdid`
+	qsub_holdid=$jid
+    fi
     stdev_int=`echo "(${ins_size}*${ins_stdev})/1" | bc`
     min_ins=`echo "${ins_size}-${stdev_int}" | bc`
     max_ins=`echo "${ins_size}+${stdev_int}" | bc`
     orientation_flag=
-    [ ! -z `echo $orientation | grep rf` ] && orientation_flag=" --rf "
-    [ ! -z `echo $orientation | grep fr` ] && orientation_flag=" --fr "
-    [ ! -z `echo $orientation | grep ff` ] && orientation_flag=" --ff "
-    [ ! -z `echo $orientation | grep rr` ] && orientation_flag=" --rr "
+    [ ! -z `echo $orientation | grep -i rf` ] && orientation_flag=" --rf "
+    [ ! -z `echo $orientation | grep -i fr` ] && orientation_flag=" --fr "
+    [ ! -z `echo $orientation | grep -i ff` ] && orientation_flag=" --ff "
+    [ ! -z `echo $orientation | grep -i rr` ] && orientation_flag=" --rr "
     lib_args="${orientation_flag} --minins ${min_ins} --maxins ${max_ins} "
-    bowtie2_cmd="bowtie2 -x $genome -q -1 $reads_R1 -2 $reads_R2 ${lib_args} -S $samfile --threads $nprocs"
+    bowtie2_cmd="bowtie2 -x $genome -q -1 $reads_R1 -2 $reads_R2 ${lib_args} -S ${prefix}.sam --threads $nprocs ${extra_flags}"
     qsub_bowtie2_cmd="qsub -N bowtie2_${orientation} -pe smp $nprocs -hold_jid ${qsub_holdid} qsub_script.sh \"${bowtie2_cmd}\""
     >&2 echo ${qsub_bowtie2_cmd}
     qsub_bowtie2_out=`eval ${qsub_bowtie2_cmd}`
@@ -203,6 +208,28 @@ run_bowtie2_ins() {
     echo ${qsub_bowtie2_jobid}
 }
     
+# Run bowtie2 on single input library
+run_bowtie2_single() {
+    reads=$1
+    genome=$2
+    prefix=$3
+    qsub_holdid=1
+    [ ! -z $4 ] && qsub_holdid=$4
+    nprocs=6
+    extra_flags=" --un ${prefix}_un.fq --al ${prefix}_al.fq "
+    get_qsub_script
+    if [ ! -e $genome.1.bt2 ]; then
+        jid=`run_bowtie2_build $genome $qsub_holdid`
+        qsub_holdid=$jid
+    fi
+    bowtie2_cmd="bowtie2 -x $genome -q -U $reads -S ${prefix}.sam --threads $nprocs ${extra_flags}"
+    qsub_bowtie2_cmd="qsub -N bowtie2 -pe smp $nprocs -hold_jid ${qsub_holdid} qsub_script.sh \"${bowtie2_cmd}\""
+    >&2 echo ${qsub_bowtie2_cmd}
+    qsub_bowtie2_out=`eval ${qsub_bowtie2_cmd}`
+    >&2 echo ${qsub_bowtie2_out}
+    qsub_bowtie2_jobid=`echo $qsub_bowtie2_out | perl -ne 'if (/Your job ([0-9]+)/) { print $1 }'`
+    echo ${qsub_bowtie2_jobid}
+}
 
 
 # Additional bowtie-alignment funcs added in context of bug 4260
