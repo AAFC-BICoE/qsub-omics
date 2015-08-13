@@ -1,6 +1,65 @@
+#get_qsub_script() {
+#    [ -e qsub_script.sh ] || svn export http://svn.biodiversity.agr.gc.ca/repo/source/AssemblyPipeline/qsub_script.sh
+#    sed -i 's/#$ -pe .*//' qsub_script.sh
+#}
+
 get_qsub_script() {
-    [ -e qsub_script.sh ] || svn export http://svn.biodiversity.agr.gc.ca/repo/source/AssemblyPipeline/qsub_script.sh
-    sed -i 's/#$ -pe .*//' qsub_script.sh
+    write_qsub_script "qsub_script.sh"
+}
+
+# harder to export a single file in git. use here doc instead.
+write_qsub_script() {
+    script_name=$1
+    job_name=${script_name%.*}
+    cat >$script_name <<EOF
+#!/bin/bash
+
+#$ -S /bin/bash
+#$ -N $job_name
+#$ -V
+#$ -M \$EMAIL
+#$ -cwd
+
+export PATH=/usr/java/latest/bin/:\$PATH
+CMD=\$1
+
+/bin/echo Running on host: \`hostname\`.
+/bin/echo In directory: \`pwd\`
+/bin/echo Starting on: \`date\`
+
+/bin/echo "Running command: \${CMD}"
+\$CMD
+
+/bin/echo Finished on: \`date\`
+EOF
+}
+
+# paste an input command right into a standard qsub script. optional 2nd arg is name of output script.
+write_qsub_script_cmd() {
+    cmd=$1
+    script_name="qsub_cmd.sh"
+    [ ! -z $2 ] && script_name=$2
+    cat >$script_name <<EOF
+#!/bin/bash
+
+#$ -S /bin/bash
+#$ -N qsub_script
+#$ -V
+#$ -M \$EMAIL
+#$ -cwd
+
+export PATH=/usr/java/latest/bin/:\$PATH
+
+/bin/echo Running on host: \`hostname\`.
+/bin/echo In directory: \`pwd\`
+/bin/echo Starting on: \`date\`
+
+/bin/echo "Running command: $cmd"
+$cmd
+
+/bin/echo Finished on: \`date\`
+
+EOF
 }
 
 run_qsub() {

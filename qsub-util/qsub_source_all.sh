@@ -4,6 +4,7 @@ SCRIPT=`readlink -f $BASH_SOURCE`
 SCRIPTDIR=`dirname $SCRIPT`
 SCRIPTLIST="qsub_utils.sh
 qsub_assembly_qc.sh
+qsub_blast.sh
 qsub_misc.sh
 qsub_read_qc.sh
 qsub_tuxedo.sh
